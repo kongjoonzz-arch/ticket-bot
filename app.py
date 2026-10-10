@@ -1,5 +1,6 @@
 import os
 import threading
+import traceback
 from dotenv import load_dotenv
 import store
 from web import app, start_keepalive
@@ -16,9 +17,18 @@ def dashboard():
 
 
 def _run_bot():
-    import bot_cmds
+    try:
+        import bot_cmds
+    except Exception:
+        print("[bot] import failed:")
+        traceback.print_exc()
+        return
     token = os.getenv("DISCORD_TOKEN", "")
-    bot_cmds.run_bot(token)
+    try:
+        bot_cmds.run_bot(token)
+    except Exception:
+        print("[bot] run failed:")
+        traceback.print_exc()
 
 
 def _ensure_bot():
