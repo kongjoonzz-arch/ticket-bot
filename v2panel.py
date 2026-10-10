@@ -51,10 +51,9 @@ def build_panel_v2(s):
         err_btn = {"type": 2, "style": 2, "label": err_label, "custom_id": "panel:error"}
         if err_e:
             err_btn["emoji"] = err_e
-        section = {"type": 9, "components": [{"type": 10, "content": text[:4000]}],
-                   "accessory": buy_btn}
-        row = {"type": 1, "components": [err_btn]}
-        container = {"type": 17, "accent_color": color, "components": [section, row]}
+        text_block = {"type": 10, "content": text[:4000]}
+        row = {"type": 1, "components": [buy_btn, err_btn]}
+        container = {"type": 17, "accent_color": color, "components": [text_block, row]}
         comps = [container]
         if thumb.startswith("http") or img.startswith("http"):
             gallery = {"type": 12, "items": []}
