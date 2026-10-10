@@ -1,0 +1,15 @@
+# Ticket Bot — 최종 구조
+실행에 필요한 파일:
+- app.py (Render 진입점: gunicorn app:app)
+- bot_main.py, bot_cmds.py (디스코드 봇)
+- ui_modal.py, ui_panel.py, ui_control.py (패널/모달/버튼)
+- ticket_utils.py, store.py (티켓/저장소)
+- web.py (헬스체크/5분 자가핑)
+- dash_api.py + templates/dash2.html + static/dash_*.js (대시보드)
+- requirements.txt, Procfile, render.yaml, runtime.txt, .env.example
+- data/ (JSON 저장소, 자동 생성)
+
+무시해도 되는 구버전 파일:
+- views.py, views2.py, panel.py, bot_part1.py, build_dash.py, build_all.py
+- dash_head.py, dash_css.py, dash_js1.py, dash_js2.py, dash_page.py, dash_page2.py, dash_p2a.py
+- templates/dash.html (dash2.html 사용)

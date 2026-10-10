@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: ticket-bot
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 8 --timeout 120
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: GUILD_ID
+        sync: false
+      - key: DASHBOARD_PASSWORD
+        sync: false
+      - key: KEEPALIVE
+        value: 1
+      - key: KEEPALIVE_URL
+        sync: false
+      - key: RENDER_EXTERNAL_URL
+        sync: false
+
