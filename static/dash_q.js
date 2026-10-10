@@ -23,19 +23,39 @@ const MSG_FIELDS = [
   ["panel_title", "패널 제목", 0],
   ["panel_description", "패널 설명", 1],
   ["panel_button_buy", "구매버튼 문구", 0],
+  ["panel_button_buy_emoji", "구매버튼 이모지 (서버이모지 <:이름:ID> 또는 이모티콘)", 0],
   ["panel_button_error", "오류버튼 문구", 0],
+  ["panel_button_error_emoji", "오류버튼 이모지 (<:이름:ID> 또는 이모티콘)", 0],
   ["panel_footer", "패널 하단", 0],
-  ["panel_image_url", "패널 이미지 URL", 0],
+  ["panel_image_url", "패널 이미지 URL (하단 큰 이미지)", 0],
+  ["panel_thumbnail_url", "패널 썸네일 URL (우측 작은 이미지)", 0],
   ["panel_color", "패널 색상(숫자)", 0],
-  ["ticket_category_id", "티켓 카테고리 ID", 0],
+  ["ticket_category_id", "티켓 공통 카테고리 ID (개별 미설정시)", 0],
+  ["buy_category_id", "구매문의 카테고리 ID", 0],
+  ["error_category_id", "오류문의 카테고리 ID", 0],
   ["ticket_log_channel_id", "로그 채널 ID", 0],
+  ["purchase_log_channel_id", "구매로그 채널 ID (구매완료 기록)", 0],
+  ["review_channel_id", "후기 채널 ID", 0],
+  ["buyer_role_id", "구매자 역할 ID (구매완료시 지급)", 0],
+  ["one_ticket_per_user", "1인 1티켓 true/false", 0],
+  ["complete_button_label", "구매완료 버튼 문구", 0],
+  ["complete_title", "구매완료 채널 제목", 0],
+  ["complete_message", "구매완료 채널 내용", 1],
+  ["complete_log_title", "구매로그 제목", 0],
+  ["review_dm_title", "후기 DM 제목", 0],
+  ["review_dm_message", "후기 DM 내용", 1],
+  ["review_title_format", "후기 제목 형식 ({stars} {user} {no})", 0],
+  ["review_min_length", "후기 최소 글자수", 0],
   ["admin_role_id", "관리자 역할 ID", 0],
   ["mention_admin_on_create", "생성시 관리자멘션 true/false", 0],
   ["mention_text", "관리자멘션 문구 ({admin_mention})", 1],
   ["welcome_message", "티켓 환영문구 ({user_mention})", 1],
   ["close_message", "닫기 채널문구", 1],
   ["close_reason_required", "닫기사유 필수 true/false", 0],
-  ["close_reason_placeholder", "닫기사유 예시문구", 0]
+  ["close_reason_placeholder", "닫기사유 예시문구", 0],
+  ["ticket_button_label", "티켓 닫기 버튼 문구", 0],
+  ["delete_on_close", "닫으면 채널삭제 true/false", 0],
+  ["delete_delay_sec", "삭제 대기 초 (1~30)", 0]
 ];
 const DM_FIELDS = [
   ["dm_on_open", "열림 DM ON true/false", 0],
@@ -102,7 +122,9 @@ function saveSet() {
   const c = Object.assign({}, SET);
   c.panel_color = parseInt(c.panel_color) || 0x5865F2;
   c.announce_color = parseInt(c.announce_color) || 0x5865F2;
-  ["mention_admin_on_create", "dm_on_open", "dm_on_close", "close_reason_required"].forEach(k => {
+  c.review_min_length = parseInt(c.review_min_length) || 5;
+  c.delete_delay_sec = Math.max(1, Math.min(30, parseInt(c.delete_delay_sec) || 5));
+  ["mention_admin_on_create", "dm_on_open", "dm_on_close", "close_reason_required", "delete_on_close", "one_ticket_per_user"].forEach(k => {
     if (typeof c[k] === "string") c[k] = (c[k] === "true");
   });
   api("/api/settings", "POST", c).then(d => { if (d.ok) { SET = d.settings; renderMsg(); renderDM(); renderNotice(); } msg(d.ok ? "saved" : "fail"); });

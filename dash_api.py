@@ -88,10 +88,20 @@ def api_settings_save():
         cur["panel_color"] = int(cur.get("panel_color", 0x5865F2))
     except Exception:
         cur["panel_color"] = 0x5865F2
-    v = cur.get("mention_admin_on_create", True)
-    if isinstance(v, str):
-        v = v.lower() == "true"
-    cur["mention_admin_on_create"] = bool(v)
+    try:
+        cur["delete_delay_sec"] = max(1, min(30, int(cur.get("delete_delay_sec", 5) or 5)))
+    except Exception:
+        cur["delete_delay_sec"] = 5
+    try:
+        cur["review_min_length"] = max(1, int(cur.get("review_min_length", 5) or 5))
+    except Exception:
+        cur["review_min_length"] = 5
+    for k in ("mention_admin_on_create", "dm_on_open", "dm_on_close",
+              "close_reason_required", "delete_on_close", "one_ticket_per_user"):
+        v = cur.get(k, True)
+        if isinstance(v, str):
+            v = v.lower() == "true"
+        cur[k] = bool(v)
     store.save_settings(cur)
     return jsonify({"ok": True, "settings": cur})
 
@@ -104,6 +114,65 @@ def api_tickets():
 @_check
 def api_notices():
     return jsonify({"ok": True, "notices": store.load_notices()})
+
+
+def _load_reviews():
+    import json as _j
+    import os as _o
+    rp = _o.path.join(store.DATA_DIR, "reviews.json")
+    try:
+        if _o.path.exists(rp):
+            with open(rp, "r", encoding="utf-8") as f:
+                return _j.load(f)
+    except Exception:
+        pass
+    return []
+
+
+@dash.route("/api/reviews", methods=["GET"])
+@_check
+def api_reviews():
+    return jsonify({"ok": True, "reviews": _load_reviews()})
+
+
+@dash.route("/api/commands", methods=["GET"])
+@_check
+def api_commands():
+    return jsonify({"ok": True, "commands": store.load_commands()})
+
+
+@dash.route("/api/commands", methods=["POST"])
+@_check
+def api_commands_save():
+    import re as _re
+    data = request.get_json(force=True, silent=True) or {}
+    arr = data.get("commands", [])
+    out = []
+    seen = set()
+    for c in arr[:25]:
+        name = _re.sub(r"\s+", "", str(c.get("name", "") or "").strip())
+        name = _re.sub(r"^/+", "", name)[:32]
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        try:
+            color = int(c.get("color", 0x5865F2))
+        except Exception:
+            color = 0x5865F2
+        out.append({
+            "name": name,
+            "description": str(c.get("description", "") or "")[:100],
+            "title": str(c.get("title", "") or "")[:256],
+            "message": str(c.get("message", "") or "")[:4000],
+            "color": color,
+            "image_url": str(c.get("image_url", "") or "")[:500],
+            "footer": str(c.get("footer", "") or "Apex Bot")[:2048],
+            "ephemeral": bool(c.get("ephemeral", False)),
+            "admin_only": bool(c.get("admin_only", False)),
+            "enabled": bool(c.get("enabled", True)),
+        })
+    store.save_commands(out)
+    return jsonify({"ok": True, "commands": out})
 
 @dash.route("/api/announce", methods=["POST"])
 @_check

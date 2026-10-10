@@ -20,15 +20,16 @@ function login() {
 let PRODS = [], QB = [], QE = [], SET = {};
 function loadAll() {
   api("/api/products").then(d => { PRODS = d.products || []; renderProd(); stat(); });
+  api("/api/commands").then(d => { CMDS = d.commands || []; renderCmd(); });
   api("/api/questions").then(d => { QB = d.questions.buy || []; QE = d.questions.error || []; renderQ(); });
   api("/api/settings").then(d => { SET = d.settings || {}; renderSet(); renderMsg(); renderDM(); renderNotice(); });
   api("/api/tickets").then(d => {
     const rows = d.tickets || [];
     const tb = document.getElementById("tbody");
-    tb.innerHTML = rows.slice().reverse().map(t => "<tr><td>#" + t.no + "</td><td>" + t.kind + "</td><td>" + esc(t.user_name) + "<br><span class='hint'>" + t.user_id + "</span></td><td>" + esc(t.product ? t.product.name : "-") + "</td><td><span class='badge " + t.status + "'>" + t.status + "</span></td><td>" + esc(t.close_reason || "-") + "</td><td>" + esc(t.created_at || "") + "</td></tr>").join("") || "<tr><td colspan=7>none</td></tr>";
-    const open = rows.filter(t => t.status !== "closed").length;
+    tb.innerHTML = rows.slice().reverse().map(t => "<tr><td>#" + t.no + "</td><td>" + t.kind + "</td><td>" + esc(t.user_name) + "<br><span class='hint'>" + t.user_id + "</span></td><td>" + esc(t.product ? t.product.name : "-") + "</td><td><span class='badge " + (t.status === "open" ? "open" : "closed") + "'>" + t.status + "</span></td><td>" + esc(t.close_reason || t.completed_by || "-") + "</td><td>" + esc(t.created_at || "") + "</td></tr>").join("") || "<tr><td colspan=7>none</td></tr>";
+    const open = rows.filter(t => t.status === "open").length;
     document.getElementById("stOpen").textContent = open;
-    document.getElementById("stClosed").textContent = rows.length - open;
+    document.getElementById("stClosed").textContent = rows.filter(t => t.status !== "open").length;
     stat();
   });
   api("/api/notices").then(d => {

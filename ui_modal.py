@@ -27,6 +27,13 @@ class QuestionModal(discord.ui.Modal):
         settings = store.load_settings()
         guild = interaction.guild
         user = interaction.user
+        if bool(settings.get("one_ticket_per_user", True)):
+            dup = tu.find_open_ticket_by_user(user.id)
+            if dup is not None:
+                ch = guild.get_channel(dup.get("channel_id")) if dup.get("channel_id") else None
+                em = tu.err_embed(f"이미 열린 티켓이 있어요.\n{(ch.mention if ch else '기존 티켓')} 에서 이어서 문의해주세요. (1인 1티켓)")
+                await interaction.followup.send(embed=em, ephemeral=True)
+                return
         answers = []
         for item, q in zip(self.children, self.qlist):
             answers.append({"id": q.get("id"), "label": q.get("label"), "value": item.value or ""})
@@ -34,20 +41,29 @@ class QuestionModal(discord.ui.Modal):
         try:
             channel = await tu.create_ticket_channel(guild, user, self.kind, ticket_no, settings)
         except discord.Forbidden:
-            await interaction.followup.send("No permission to create channel.", ephemeral=True)
+            await interaction.followup.send(embed=tu.err_embed("채널 생성 권한이 없어요. 봇에게 **채널 관리** 권한을 주세요."), ephemeral=True)
             return
         except Exception as e:
-            await interaction.followup.send(f"Channel create failed: {e}", ephemeral=True)
+            await interaction.followup.send(embed=tu.err_embed(f"채널 생성 실패: {e}"), ephemeral=True)
             return
         summary = tu.build_summary_embed(self.kind, user, self.product, answers, ticket_no)
+        settings2 = store.load_settings()
+        close_label = str(settings2.get("ticket_button_label", "🔒 티켓 닫기") or "🔒 티켓 닫기")
+        from ui_control import TicketControlView
+        view = TicketControlView(close_label)
+        summary.add_field(name="🎛️ 티켓 관리", value="문의가 끝나면 관리자가 아래 버튼으로 티켓을 닫습니다.", inline=False)
         mention_txt = ""
         if settings.get("mention_admin_on_create"):
             raw = settings.get("mention_text", "") or ""
-            mention_txt = raw.replace("{admin_mention}", tu.admin_mention_text(settings, guild)) + "\n"
+            mention_txt = raw.replace("{admin_mention}", tu.admin_mention_text(settings, guild))
         welcome = (settings.get("welcome_message") or "").replace("{user_mention}", user.mention)
-        from ui_control import TicketControlView
+        content = ""
+        if mention_txt.strip():
+            content += mention_txt.strip() + "\n"
+        if welcome.strip():
+            content += welcome.strip()
         try:
-            await channel.send(mention_txt + welcome, embed=summary, view=TicketControlView())
+            await channel.send(content=content or None, embed=summary, view=view)
         except Exception as e:
             print(f"[ticket] first msg failed: {e}")
         store.append_ticket({"no": ticket_no, "kind": self.kind, "user_id": user.id, "user_name": str(user), "channel_id": channel.id, "product": self.product, "answers": answers, "status": "open", "created_at": tu.now_kst_str()})
@@ -65,12 +81,20 @@ class QuestionModal(discord.ui.Modal):
                        "channel": channel.mention, "product": prod_txt, "answers": ans_txt}
             title = tu.fill(settings.get("dm_open_title", ""), mapping).replace("#{no}", f"#{ticket_no}")
             msg = tu.fill(settings.get("dm_open_message", ""), mapping).replace("#{no}", f"#{ticket_no}")
-            ok = await tu.send_dm(user, title, msg)
+            ok = await tu.send_dm(user, title, msg, thumb_url=(guild.icon.url if getattr(guild, "icon", None) else None))
             if not ok:
                 try:
-                    await channel.send(f"{user.mention} DM이 차단되어 있어 채널로 안내드립니다. DM 차단을 풀어주세요 🙂")
+                    em2 = tu.ok_embed("📩 DM 알림 실패", f"{user.mention} DM이 차단되어 있어요. DM 차단을 풀어주세요 🙂", color=0xFEE75C)
+                    await channel.send(embed=em2)
                 except Exception:
                     pass
-        log = discord.Embed(title=f"Ticket #{ticket_no} created", description=f"{user.mention} | {self.kind} | {channel.mention}", color=0x5865F2)
+        log = discord.Embed(title=f"🎫 Ticket #{ticket_no} 생성", color=0x5865F2)
+        log.description = "━━━━━━━━━━━━━━━"
+        log.add_field(name="문의자", value=f"{user.mention} · {self.kind}", inline=False)
+        log.add_field(name="채널", value=channel.mention, inline=False)
+        log.set_footer(text=f"{tu.now_kst_str()} (KST)")
+        log.timestamp = tu.now_kst()
         await tu.send_log(guild, settings, log)
-        await interaction.followup.send(f"Ticket opened! {channel.mention}", ephemeral=True)
+        done = discord.Embed(title="✅ 티켓 개설 완료", color=0x57F287)
+        done.description = f"{channel.mention} 에서 이어서 문의해주세요.\nDM으로도 안내를 보냈습니다."
+        await interaction.followup.send(embed=done, ephemeral=True)

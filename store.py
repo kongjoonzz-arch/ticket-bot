@@ -11,24 +11,45 @@ PRODUCTS_FILE = os.path.join(DATA_DIR, "products.json")
 QUESTIONS_FILE = os.path.join(DATA_DIR, "questions.json")
 SETTINGS_FILE = os.path.join(DATA_DIR, "settings.json")
 TICKETS_FILE = os.path.join(DATA_DIR, "tickets.json")
+COMMANDS_FILE = os.path.join(DATA_DIR, "commands.json")
 
 _lock = threading.Lock()
 
 DEFAULT_SETTINGS = {
-    "panel_title": "🎫 티켓 구매 센터",
-    "panel_description": "아래 버튼을 눌러 티켓을 열어주세요.\n\n🛒 **구매문의** — 상품을 구매하고 싶을 때\n❓ **오류문의** — 입금 오류 / 상품 오류 등 문제가 있을 때",
-    "panel_button_buy": "🛒 구매문의",
-    "panel_button_error": "❓ 오류문의",
-    "panel_footer": "문의는 티켓으로만 처리됩니다.",
+    "panel_title": "🎫 PREMIUM SUPPORT",
+    "panel_description": "원하시는 문의를 선택해주세요.\n\n🛒 구매 문의 — 상품 구매·입금 안내\n❓ 오류 문의 — 입금 오류·상품 문제 해결",
+    "panel_button_buy": "구매 문의",
+    "panel_button_error": "오류 문의",
+    "panel_button_buy_emoji": "",
+    "panel_button_error_emoji": "",
+    "panel_footer": "24시간 운영 · 평균 응답 10분 이내",
     "panel_image_url": "",
+    "panel_thumbnail_url": "",
     "panel_color": 5814783,
+    "buy_category_id": "",
+    "error_category_id": "",
     "ticket_category_id": "",
     "ticket_log_channel_id": "",
+    "purchase_log_channel_id": "",
+    "review_channel_id": "",
+    "buyer_role_id": "",
+    "one_ticket_per_user": True,
+    "complete_button_label": "✅ 구매완료",
+    "complete_title": "✅ 구매완료 처리",
+    "complete_message": "구매가 완료되었습니다. 이용해 주셔서 감사합니다!",
+    "complete_log_title": "✅ 구매완료",
+    "review_dm_title": "⭐ 후기를 남겨주세요! (티켓 #{no})",
+    "review_dm_message": "안녕하세요 {user_mention}님!\n**{product}** 구매가 완료되었습니다 🎉\n\n아래에서 별점을 골라주세요. 그 다음 DM으로 후기를 적어주시면 후기 채널에 자동 등록됩니다.",
+    "review_title_format": "⭐ {stars} · {user}",
+    "review_min_length": 5,
     "admin_role_id": "",
     "mention_admin_on_create": True,
     "mention_text": "📢 관리자님, 새 티켓이 열렸습니다! {admin_mention} 확인 부탁드립니다.",
     "welcome_message": "안녕하세요 {user_mention}님! 문의 내용을 정리해드렸어요.\n관리자가 곧 확인해드립니다. 추가 설명이 있으면 이 채널에 적어주세요 🙂",
     "close_message": "🔒 티켓이 닫혔습니다. 이용해 주셔서 감사합니다!",
+    "delete_on_close": True,
+    "delete_delay_sec": 5,
+    "ticket_button_label": "🔒 티켓 닫기",
     "dm_on_open": True,
     "dm_open_title": "🎫 티켓이 열렸습니다! (#{no})",
     "dm_open_message": "안녕하세요 {user_mention}님!\n{kind} 티켓 **#{no}**이 열렸습니다.\n{channel} 에서 대화를 이어가주세요.\n\n{product}\n\n{answers}",
@@ -49,6 +70,7 @@ DEFAULT_SETTINGS = {
     "keepalive_url": "",
 }
 NOTICES_FILE = os.path.join(DATA_DIR, "notices.json")
+REVIEWS_FILE = os.path.join(DATA_DIR, "reviews.json")
 
 DEFAULT_QUESTIONS_BUY = [
     {"id": "q1", "label": "입금자명", "placeholder": "예: 홍길동", "required": True, "max_length": 50, "enabled": True},
@@ -151,6 +173,17 @@ def load_notices():
         return _read_json(NOTICES_FILE, [])
 
 
+def load_commands():
+    with _lock:
+        arr = _read_json(COMMANDS_FILE, [])
+        return arr if isinstance(arr, list) else []
+
+
+def save_commands(cmds):
+    with _lock:
+        _write_json(COMMANDS_FILE, cmds if isinstance(cmds, list) else [])
+
+
 def save_notices(notices):
     with _lock:
         _write_json(NOTICES_FILE, notices)
@@ -179,3 +212,14 @@ def init_storage():
         _write_json(TICKETS_FILE, [])
     if not os.path.exists(NOTICES_FILE):
         _write_json(NOTICES_FILE, [])
+    if not os.path.exists(REVIEWS_FILE):
+        _write_json(REVIEWS_FILE, [])
+    if not os.path.exists(COMMANDS_FILE):
+        _write_json(COMMANDS_FILE, [
+            {"name": "계좌", "description": "계좌번호 안내",
+             "title": "💳 입금 계좌 안내", "message": "은행: \n계좌번호: \n예금주: \n\n입금 후 입금자명을 티켓에 남겨주세요.",
+             "color": 5814783, "image_url": "", "footer": "Apex Bot", "ephemeral": False, "enabled": True},
+        ])
+    pp = os.path.join(DATA_DIR, "review_pending.json")
+    if not os.path.exists(pp):
+        _write_json(pp, {})

@@ -1,14 +1,14 @@
-# Ticket Bot (구매문의/오류문의) — Render 배포 가이드
+# Apex Bot — 티켓구매봇 Render 배포 가이드
 
-## 0. 개요
-- 자판기 완전 제거, 티켓구매봇으로 새로 제작
-- 구매문의: 상품선택 → 질문답변 → 비공개 티켓 생성
-- 오류문의: 질문답변 → 비공개 티켓 생성
-- 티켓 상단: 선택상품 + 답변정리 임베드 + 관리자 멘션(설정 가능)
-- 티켓 내부 버튼: 구매확인/닫기 = 관리자만
-- 티켓 채널: 관리자 + 티켓 연 사람만 열람
-- 대시보드: 상품/질문/패널문구/멘션/티켓현황 전부 관리
-- Render: 5분마다 /ping 자가호출 + /health 헬스체크
+## 0. 개요 (Apex Bot — 모든 메시지는 임베드)
+- 구매문의: 상품선택 → 질문답변 → 비공개 티켓 (구매 카테고리)
+- 오류문의: 질문답변 → 비공개 티켓 (오류 카테고리)
+- 1인 1티켓: 열린 티켓 있으면 신규 생성 차단
+- `/구매완료` or ✅ 버튼: 구매자 역할 지급 + 구매로그 + 후기 DM(별점) → 채널 삭제
+- 🔒 닫기: 사유 입력 → 채널/로그/DM 전달 → 채널 삭제 (구매완료 아님)
+- 후기: DM 별점 → DM 텍스트 → 후기 채널 임베드 자동 등록
+- 커스텀 명령어: 대시보드에서 `/계좌` 등 생성 → 임베드 발송
+- Render: 5분 자가핑 + /health
 
 ## 1. 폴더
 이 폴더 통째로 GitHub에 올리세요: `ticket-bot/`
@@ -29,24 +29,24 @@
 - 권한: Manage Channels, Send Messages, Embed Links, Read History
 - 관리자 역할 ID를 대시보드 Settings(admin_role_id)에 입력
 
-## 4. 사용법
-- `/panel` (관리자) → 패널 전송
-- 유저: 구매문의 → 상품선택 → 질문답변 → 비공개 티켓 생성 + 유저 DM 알림
-- 유저: 오류문의 → 질문답변 → 비공개 티켓 생성 + 유저 DM 알림
-- 티켓 상단: 답변 정리 임베드 + 관리자 멘션(설정 가능)
-- 티켓 내부 버튼: 구매확인/닫기 = 관리자만
-- 닫기: 사유 모달 입력 → 채널/로그/유저DM에 사유 전달 + 채널 잠금
-- `/ticket-confirm`, `/ticket-close [사유]`, `/announce`, `/dm-test` (관리자)
+## 4. 사용법 (전부 임베드)
+- `/panel` (관리자) → 고급 패널 전송 (이미지/썸네일 지원, 상품목록 숨김)
+- 구매문의 → 상품선택 임베드 → 질문 → 티켓+요약임베드+DM임베드
+- 오류문의 → 질문 → 티켓+요약임베드+DM임베드
+- ✅ 구매완료 (버튼 or `/구매완료`): 역할지급 + 구매로그 + 후기DM → 채널 삭제
+- 🔒 닫기 (버튼 or `/ticket-close [사유]`): 사유 채널/로그/DM → 채널 삭제 (구매완료 아님)
+- 후기: DM 별점 버튼 → DM에 후기 작성 → 후기 채널 임베드 등록
+- `/announce` `/dm-test` `/cmd-reload` (관리자)
 
 ## 5. 대시보드 (Pro)
-- `https://주소/dashboard` → 비밀번호 로그인
-- 상단 통계: 열린/닫힌 티켓, 판매중 상품, 공지 발송 수
-- Products: 상품/가격/재고/판매중 관리
-- Questions: 구매/오류 질문 최대 5개씩 관리
-- 봇 메시지: 패널/버튼/멘션/환영/닫기/사유 문구 전부 수정
-- DM 알림: 열림/닫힘 DM ON·제목·내용 전부 수정 ({no} {kind} {reason} 등 변수 지원)
-- 공지: 제목/내용/색상/이미지/하단/멘션 + 미리보기 → 디스코드 `/announce`로 발송
-- Tickets: 티켓 현황 + 닫기 사유 확인
+- 상단 통계 + 탭: 상품 / 질문 / 명령어 / 봇메시지 / DM / 공지 / 티켓
+- 상품: 이름/가격/재고/판매중
+- 질문: 구매/오류 각 5개
+- 명령어: 이름(예: 계좌) + 제목/내용/색상/이미지/나만보기/관리자만 → 저장 후 `/cmd-reload`
+- 봇메시지: 패널/카테고리(구매/오류)/로그/구매로그/후기채널/역할/완료문구/후기문구 전부 수정
+- DM: 열림/닫힘 ON·제목·내용
+- 공지: 미리보기 → `/announce` 발송
+- 티켓: 상태(open/completed/closed) + 사유/완료자
 
 ## 6. 로컬 실행
 ```
@@ -56,8 +56,19 @@ python app.py
 - 웹: http://localhost:10000 , 대시보드: http://localhost:10000/dashboard
 
 ## 7. 실행 파일 목록
-- app.py / bot_main.py / bot_cmds.py
-- ui_modal.py / ui_panel.py / ui_control.py
+- app.py / bot_main.py / bot_cmds.py / custom_cmds.py
+- ui_modal.py / ui_panel.py / ui_control.py / ui_close.py / ui_complete.py / ui_done.py / ui_review.py
 - ticket_utils.py / store.py / web.py / dash_api.py
-- templates/dash2.html + static/dash_core.js + static/dash_prod.js + static/dash_q.js
+- templates/dash_pro.html + static/dash_core.js + static/dash_prod.js + static/dash_q.js
+
+## 8. 재배포 (git lock시)
+```
+cd "c:\Users\USER\Downloads\PylaAI-main (1)\ticket-bot"
+del .git\index.lock
+git add -A
+git commit -m "Apex Bot update"
+git push origin main
+```
+- Render 자동 재배포 후 `/panel` 다시 전송 (새 버튼 반영)
+
 
