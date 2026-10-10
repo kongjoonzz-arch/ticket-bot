@@ -145,33 +145,6 @@ async def panel_cmd(interaction: discord.Interaction):
     await interaction.followup.send(embed=done, ephemeral=True)
 
 
-@bot.event
-async def on_interaction(interaction):
-    try:
-        if interaction.type == discord.InteractionType.component:
-            cid = ""
-            try:
-                cid = str((interaction.data or {}).get("custom_id", ""))
-            except Exception:
-                cid = ""
-            if cid == "panel:buy":
-                from ui_panel import PanelView
-                s = store.load_settings()
-                pv = make_panel_view(s)
-                for child in pv.children:
-                    if getattr(child, "custom_id", "") == "panel:buy":
-                        await child.callback(interaction)
-                        return
-            elif cid == "panel:error":
-                s = store.load_settings()
-                pv = make_panel_view(s)
-                for child in pv.children:
-                    if getattr(child, "custom_id", "") == "panel:error":
-                        await child.callback(interaction)
-                        return
-    except Exception as e:
-        print(f"[v2] component route failed: {e}")
-
 @bot.tree.command(name="cmd-reload", description="Reload dashboard custom commands (admin)")
 async def cmd_reload(interaction: discord.Interaction):
     if not _is_admin_interaction(interaction):
