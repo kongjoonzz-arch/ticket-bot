@@ -1,20 +1,44 @@
+# -*- coding: utf-8 -*-
+"""별점 선택 + 후기 DM 흐름 (상품명 포함)."""
+import json
+import os
 import discord
 import store
 import ticket_utils as tu
 
 
-async def _save_pending(user_id, ticket_no, stars, guild_id):
+def _pending_path():
+    return os.path.join(store.DATA_DIR, "review_pending.json")
+
+
+def _load_all_pending():
+    pp = _pending_path()
+    if not os.path.exists(pp):
+        return {}
     try:
-        import json as _j
-        import os as _o
-        pp = _o.path.join(store.DATA_DIR, "review_pending.json")
-        cur = {}
-        if _o.path.exists(pp):
-            with open(pp, "r", encoding="utf-8") as f:
-                cur = _j.load(f)
-        cur[str(user_id)] = {"ticket_no": ticket_no, "stars": stars, "guild_id": guild_id}
-        with open(pp, "w", encoding="utf-8") as f:
-            _j.dump(cur, f, ensure_ascii=False, indent=2)
+        with open(pp, "r", encoding="utf-8") as f:
+            return json.load(f) or {}
+    except Exception:
+        return {}
+
+
+def _load_pending(user_id):
+    return _load_all_pending().get(str(user_id), {}) or {}
+
+
+async def _save_pending(user_id, ticket_no, stars, guild_id, product="", category=""):
+    try:
+        cur = _load_all_pending()
+        cur[str(user_id)] = {
+            "ticket_no": ticket_no,
+            "stars": stars,
+            "guild_id": guild_id,
+            "product": str(product or ""),
+            "category": str(category or ""),
+            "at": tu.now_kst_str(),
+        }
+        with open(_pending_path(), "w", encoding="utf-8") as f:
+            json.dump(cur, f, ensure_ascii=False, indent=2)
     except Exception as e:
         print(f"[review] pending save failed: {e}")
 
@@ -56,52 +80,53 @@ class ReviewStarsView(discord.ui.View):
                 stars = int(parts[-1])
         except Exception:
             pass
+        info = _load_pending(interaction.user.id)
         if not ticket_no:
-            try:
-                import json as _j
-                import os as _o
-                pp = _o.path.join(store.DATA_DIR, "review_pending.json")
-                if _o.path.exists(pp):
-                    with open(pp, "r", encoding="utf-8") as f:
-                        cur = _j.load(f)
-                    info = cur.get(str(interaction.user.id), {})
-                    ticket_no = info.get("ticket_no", 0)
-                    guild_id = info.get("guild_id", guild_id)
-            except Exception:
-                pass
+            ticket_no = info.get("ticket_no", 0)
         if not guild_id:
             try:
-                guild_id = interaction.guild.id if interaction.guild else 0
+                guild_id = info.get("guild_id", 0) or (interaction.guild.id if interaction.guild else 0)
             except Exception:
                 guild_id = 0
-        await _save_pending(interaction.user.id, ticket_no, stars, guild_id)
+        await _save_pending(interaction.user.id, ticket_no, stars, guild_id,
+                            product=info.get("product", ""), category=info.get("category", ""))
         s = store.load_settings()
         need = int(s.get("review_min_length", 5) or 5)
-        em = tu.ok_embed("⭐ 별점 접수", f"**{stars}점** 접수됐어요!\n이제 이 DM에 후기를 **{need}자 이상** 적어주세요 🙂", color=0xFEE75C)
+        product = str(info.get("product") or "").strip()
+        extra = f"\n🛍️ 상품: **{product}**" if product else ""
+        em = tu.ok_embed("⭐ 별점 접수",
+                         f"**{stars}점** 접수됐어요!{extra}\n이제 이 DM에 후기를 **{need}자 이상** 적어주세요 🙂",
+                         color=0xFEE75C)
         try:
             await interaction.followup.send(embed=em, ephemeral=True)
         except Exception:
             pass
 
 
-async def send_review_dm(guild, member, ticket_no, product_name):
+async def send_review_dm(guild, member, ticket_no, product_name, category=""):
+    """구매완료 후 후기 요청 DM (상품명/카테고리 포함)."""
     s = store.load_settings()
-    mapping = {"no": ticket_no, "user_mention": member.mention, "product": product_name or "상품"}
+    product_name = str(product_name or "상품")
+    category = str(category or "").strip() or "기타"
+    mapping = {"no": ticket_no, "user_mention": member.mention,
+               "product": product_name, "category": category}
     title = tu.fill(s.get("review_dm_title", ""), mapping).replace("#{no}", f"#{ticket_no}")
     msg = tu.fill(s.get("review_dm_message", ""), mapping).replace("#{no}", f"#{ticket_no}")
-    thumb = None
     try:
-        thumb = guild.icon.url if getattr(guild, "icon", None) else None
-    except Exception:
-        thumb = None
-    try:
-        await member.send(embed=tu.apex_embed(s, title, msg))
-    except Exception:
-        pass
-    await _save_pending(member.id, ticket_no, 5, guild.id)
+        em = tu.apex_embed(s, title, msg)
+        em.add_field(name="🛍️ 상품",
+                     value=f"**{product_name}**\n🏷️ {category}",
+                     inline=False)
+        await member.send(embed=em)
+    except Exception as e:
+        print(f"[review] dm failed: {e}")
+        return False
+    await _save_pending(member.id, ticket_no, 5, guild.id, product=product_name, category=category)
     try:
         await member.send(view=ReviewStarsView(ticket_no, guild.id),
-                          embed=tu.ok_embed("⭐ 별점 선택", "별점을 눌러주세요. (DM 전용)", color=0xFEE75C))
+                          embed=tu.ok_embed("⭐ 별점 선택",
+                                            f"**{product_name}** 은 어떠셨나요?\n아래 별점을 눌러주세요. (DM 전용)",
+                                            color=0xFEE75C))
     except Exception as e:
         print(f"[review] dm failed: {e}")
         return False

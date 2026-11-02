@@ -19,7 +19,7 @@ function login() {
 }
 let PRODS = [], QB = [], QE = [], SET = {};
 function loadAll() {
-  api("/api/products").then(d => { PRODS = d.products || []; renderProd(); stat(); });
+  api("/api/products").then(d => { PRODS = d.products || []; CATS = d.categories || []; renderCats(); renderProd(); stat(); });
   api("/api/commands").then(d => { CMDS = d.commands || []; renderCmd(); });
   api("/api/questions").then(d => { QB = d.questions.buy || []; QE = d.questions.error || []; renderQ(); });
   api("/api/settings").then(d => { SET = d.settings || {}; renderSet(); renderMsg(); renderDM(); renderNotice(); });

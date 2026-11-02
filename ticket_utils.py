@@ -100,13 +100,13 @@ def admin_mention_text(settings: dict, guild: discord.Guild) -> str:
     return "@관리자"
 
 
-def build_summary_embed(kind: str, user: discord.abc.User, product, answers: list, ticket_no: int) -> discord.Embed:
+def build_summary_embed(kind: str, user: discord.abc.User, product, answers: list, ticket_no: int = 0) -> discord.Embed:
     is_buy = (kind == "buy")
     kind_label = "🛒 구매 문의" if is_buy else "❓ 오류 문의"
     color = 0x5865F2 if is_buy else 0xEB459E
-    embed = discord.Embed(title=f"{kind_label} · #{ticket_no}", color=color)
+    embed = discord.Embed(title=kind_label, color=color)
     embed.description = "━━━━━━━━━━━━━━━\n접수가 완료되었습니다. 관리자가 확인 중입니다.\n━━━━━━━━━━━━━━━"
-    embed.add_field(name="👤 문의자", value=f"{user.mention}\n`{user.id}`", inline=True)
+    embed.add_field(name="👤 문의자", value=f"{user.mention}", inline=True)
     embed.add_field(name="🕒 접수 시각", value=f"{now_kst_str()} (KST)", inline=True)
     if is_buy and product:
         price = product.get("price", 0)
@@ -115,8 +115,9 @@ def build_summary_embed(kind: str, user: discord.abc.User, product, answers: lis
         except Exception:
             price_txt = str(price)
         stock = product.get("stock", "?")
+        category = str(product.get("category") or "").strip() or "기타"
         desc = str(product.get("description", "") or "").strip()
-        val = f"**{product.get('name', '(삭제된 상품)')}**\n💰 {price_txt} · 📦 재고 {stock}"
+        val = f"🏷️ {category}\n**{product.get('name', '(삭제된 상품)')}**\n💰 {price_txt} · 📦 재고 {stock}"
         if desc:
             val += f"\n> {desc[:300]}"
         embed.add_field(name="🎁 선택 상품", value=val, inline=False)
@@ -128,7 +129,7 @@ def build_summary_embed(kind: str, user: discord.abc.User, product, answers: lis
             value = value[:500] + "…"
         lines.append(f"**{i}. {label}**\n> {value}")
     embed.add_field(name="📝 답변 정리", value="\n\n".join(lines) if lines else "답변 없음", inline=False)
-    embed.set_footer(text=f"Ticket #{ticket_no} · 추가 설명은 이 채널에 입력")
+    embed.set_footer(text="추가 설명은 이 채널에 입력해주세요")
     embed.timestamp = datetime.now(KST)
     try:
         avatar = getattr(user, "display_avatar", None)
@@ -141,9 +142,10 @@ def build_summary_embed(kind: str, user: discord.abc.User, product, answers: lis
 
 async def create_ticket_channel(guild: discord.Guild, user: discord.Member, kind: str,
                                 ticket_no: int, settings: dict):
-    """관리자+본인만 볼 수 있는 비공개 채널 생성. 구매/오류 카테고리 분리."""
+    """관리자+본인만 볼 수 있는 비공개 채널 생성 (채널 이름은 닉네임만)."""
     kind_ko = "구매 문의" if kind == "buy" else "오류 문의"
-    name = safe_channel_name(f"{kind_ko}-{ticket_no}-{user.display_name}")
+    nick = str(getattr(user, "display_name", None) or getattr(user, "name", "") or "ticket")
+    name = safe_channel_name(nick) or "ticket"
     key = "buy_category_id" if kind == "buy" else "error_category_id"
     cat_id = str(settings.get(key) or settings.get("ticket_category_id") or "").strip()
     category = None
@@ -159,7 +161,8 @@ async def create_ticket_channel(guild: discord.Guild, user: discord.Member, kind
                                           embed_links=True),
         guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True,
                                               manage_channels=True, manage_messages=True,
-                                              read_message_history=True),
+                                              read_message_history=True,
+                                              attach_files=True, embed_links=True),
     }
     role_id = str(settings.get("admin_role_id") or "").strip()
     if role_id.isdigit():
@@ -171,10 +174,35 @@ async def create_ticket_channel(guild: discord.Guild, user: discord.Member, kind
 
     channel = await guild.create_text_channel(
         name=name, category=category, overwrites=overwrites,
-        topic=f"티켓 #{ticket_no} | {kind_ko} | {user.id}",
-        reason=f"티켓 #{ticket_no} 생성 ({user})",
+        topic=f"{kind_ko} | {user.id}",
+        reason=f"티켓 생성 ({user})",
     )
     return channel
+
+
+def send_rest_embed(channel_id, embed, content=None):
+    """봇 이벤트 루프 밖(대시보드/스레드)에서도 채널에 임베드를 보낼 수 있게 REST 사용."""
+    import os as _os
+    cid = str(channel_id or "").strip()
+    tok = _os.getenv("DISCORD_TOKEN", "")
+    if not cid.isdigit() or not tok:
+        return False
+    try:
+        import requests as _rq
+        body = {"embeds": [embed.to_dict()]}
+        if content:
+            body["content"] = str(content)[:2000]
+        r = _rq.post(f"https://discord.com/api/v10/channels/{cid}/messages",
+                     headers={"Authorization": f"Bot {tok}",
+                              "Content-Type": "application/json"},
+                     json=body, timeout=15)
+        if r.status_code >= 300:
+            print(f"[rest] send failed {r.status_code}: {r.text[:200]}")
+            return False
+        return True
+    except Exception as e:
+        print(f"[rest] send error: {e}")
+        return False
 
 
 async def send_log(guild: discord.Guild, settings: dict, embed: discord.Embed):

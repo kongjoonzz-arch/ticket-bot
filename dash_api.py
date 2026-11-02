@@ -6,6 +6,13 @@ import store
 
 dash = Blueprint("dash", __name__)
 
+
+def _int(v, default=0):
+    try:
+        return int(v)
+    except Exception:
+        return default
+
 def _pw():
     return os.getenv("DASHBOARD_PASSWORD", "admin1234")
 
@@ -29,15 +36,17 @@ def api_auth():
 @dash.route("/api/products", methods=["GET"])
 @_check
 def api_products():
-    return jsonify({"ok": True, "products": store.load_products()})
+    return jsonify({"ok": True, "products": store.load_products(),
+                    "categories": store.load_category_order()})
 
 @dash.route("/api/products", methods=["POST"])
 @_check
 def api_products_save():
     data = request.get_json(force=True, silent=True) or {}
     prods = data.get("products", [])
+    old = {str(p.get("id")): p for p in store.load_products()}
     out = []
-    for p in prods:
+    for i, p in enumerate(prods):
         pid = str(p.get("id") or uuid.uuid4().hex[:8])
         try:
             price = int(p.get("price", 0))
@@ -47,9 +56,79 @@ def api_products_save():
             stock = int(p.get("stock", 0))
         except Exception:
             stock = 0
-        out.append({"id": pid, "name": str(p.get("name", "product"))[:100], "price": price, "stock": stock, "description": str(p.get("description", ""))[:500], "enabled": bool(p.get("enabled", True))})
+        try:
+            qty = int(p.get("quantity", 1) or 1)
+        except Exception:
+            qty = 1
+        try:
+            disc = int(p.get("discount", 0) or 0)
+        except Exception:
+            disc = 0
+        try:
+            order = int(p.get("order", i + 1) or (i + 1))
+        except Exception:
+            order = i + 1
+        out.append({"id": pid, "name": str(p.get("name", "product"))[:100],
+                    "category": str(p.get("category", "") or "").strip()[:60],
+                    "price": price, "quantity": max(1, qty), "discount": max(0, disc),
+                    "stock": stock, "order": order,
+                    "description": str(p.get("description", ""))[:500],
+                    "enabled": bool(p.get("enabled", True))})
     store.save_products(out)
-    return jsonify({"ok": True, "products": out})
+    # 재고가 늘어난 상품 → 입고 알림
+    added = []
+    for p in out:
+        prev = old.get(str(p["id"]))
+        if not prev:
+            continue
+        before = _int(prev.get("stock"), 0)
+        after = _int(p.get("stock"), 0)
+        if before >= 0 and after > before:
+            added.append({"name": p["name"], "category": p.get("category"),
+                          "added": after - before, "stock": after})
+    if added:
+        try:
+            import ui_stock
+            ui_stock.send_restock(store.load_settings(), added, source="대시보드 재고 수정")
+        except Exception as e:
+            print(f"[stock] restock notify failed: {e}")
+    if "categories" in data:
+        store.save_category_order(data.get("categories") or [])
+    # 상품에서 쓰는 카테고리는 순서 목록에 자동 추가
+    cats = store.load_category_order()
+    merged = list(cats)
+    for p in out:
+        c = str(p.get("category") or "").strip() or "기타"
+        if c not in merged:
+            merged.append(c)
+    if merged != cats:
+        store.save_category_order(merged)
+    return jsonify({"ok": True, "products": out, "categories": merged})
+
+
+@dash.route("/api/categories", methods=["POST"])
+@_check
+def api_categories_save():
+    data = request.get_json(force=True, silent=True) or {}
+    store.save_category_order(data.get("categories") or [])
+    return jsonify({"ok": True, "categories": store.load_category_order()})
+
+
+@dash.route("/api/products/defaults", methods=["POST"])
+@_check
+def api_products_defaults():
+    data = request.get_json(force=True, silent=True) or {}
+    mode = str(data.get("mode") or "merge")
+    out = store.seed_default_products(merge=(mode != "replace"))
+    cats = store.load_category_order()
+    merged = list(cats)
+    for p in out:
+        c = str(p.get("category") or "").strip() or "기타"
+        if c not in merged:
+            merged.append(c)
+    if merged != cats:
+        store.save_category_order(merged)
+    return jsonify({"ok": True, "products": out, "categories": merged})
 
 @dash.route("/api/questions", methods=["GET"])
 @_check
@@ -97,7 +176,8 @@ def api_settings_save():
     except Exception:
         cur["review_min_length"] = 5
     for k in ("mention_admin_on_create", "dm_on_open", "dm_on_close",
-              "close_reason_required", "delete_on_close", "one_ticket_per_user"):
+              "close_reason_required", "close_keep_channel", "delete_on_close",
+              "one_ticket_per_user", "card_image_enabled", "stock_enabled"):
         v = cur.get(k, True)
         if isinstance(v, str):
             v = v.lower() == "true"

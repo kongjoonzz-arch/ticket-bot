@@ -34,6 +34,35 @@ class QuestionModal(discord.ui.Modal):
                 em = tu.err_embed(f"이미 열린 티켓이 있어요.\n{(ch.mention if ch else '기존 티켓')} 에서 이어서 문의해주세요. (1인 1티켓)")
                 await interaction.followup.send(embed=em, ephemeral=True)
                 return
+        # 상품 최신 정보 반영 + 재고 확인
+        if self.kind == "buy" and self.product:
+            pid = str(self.product.get("id") or "")
+            cur = next((p for p in store.load_products() if str(p.get("id")) == pid), None)
+            if cur is not None:
+                self.product = cur
+            product = self.product or {}
+            try:
+                stock = int(product.get("stock", 0) or 0)
+            except Exception:
+                stock = 0
+            try:
+                need = max(1, int(product.get("quantity", 1) or 1))
+            except Exception:
+                need = 1
+            stock_on = settings.get("stock_enabled", True)
+            if isinstance(stock_on, str):
+                stock_on = stock_on.strip().lower() == "true"
+            name = str(product.get("name") or "상품")
+            if stock_on and stock == 0:
+                await interaction.followup.send(
+                    embed=tu.err_embed(f"**{name}** 은(는) **품절**되었어요.\n다른 상품을 선택해주세요."),
+                    ephemeral=True)
+                return
+            if stock_on and 0 < stock < need:
+                await interaction.followup.send(
+                    embed=tu.err_embed(f"재고가 부족해요.\n남은 재고 **{stock}개** · 필요 **{need}개**"),
+                    ephemeral=True)
+                return
         answers = []
         for item, q in zip(self.children, self.qlist):
             answers.append({"id": q.get("id"), "label": q.get("label"), "value": item.value or ""})

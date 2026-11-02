@@ -54,8 +54,17 @@ const MSG_FIELDS = [
   ["close_reason_required", "닫기사유 필수 true/false", 0],
   ["close_reason_placeholder", "닫기사유 예시문구", 0],
   ["ticket_button_label", "티켓 닫기 버튼 문구", 0],
-  ["delete_on_close", "닫으면 채널삭제 true/false", 0],
-  ["delete_delay_sec", "삭제 대기 초 (1~30)", 0]
+  ["close_keep_channel", "닫아도 채널 유지 true/false (관리자만 보임 + 삭제버튼)", 0],
+  ["delete_button_label", "닫힌 채널 삭제 버튼 문구", 0],
+  ["delete_on_close", "자동 삭제 true/false (채널유지 false일 때만)", 0],
+  ["delete_delay_sec", "삭제 대기 초 (1~30)", 0],
+  ["purchase_card_title", "구매완료 카드 제목", 0],
+  ["purchase_card_message", "구매완료 카드 안내문", 1],
+  ["receipt_brand", "카드 상단 브랜드명 (비우면 Apex Bot / {server}=서버 이름)", 0],
+  ["card_accent", "카드 강조색 HEX (예: #3AD6A5 · 비우면 기본 민트/앰버)", 0],
+  ["card_image_enabled", "카드를 이미지(PNG)로 전송 true/false", 0],
+  ["stock_enabled", "재고 관리 사용 true/false (품절 차단 + 구매완료 시 차감)", 0],
+  ["stock_log_channel_id", "입고 알림 채널 ID (재고 추가 시 · 비우면 구매로그/티켓로그)", 0]
 ];
 const DM_FIELDS = [
   ["dm_on_open", "열림 DM ON true/false", 0],
@@ -124,7 +133,7 @@ function saveSet() {
   c.announce_color = parseInt(c.announce_color) || 0x5865F2;
   c.review_min_length = parseInt(c.review_min_length) || 5;
   c.delete_delay_sec = Math.max(1, Math.min(30, parseInt(c.delete_delay_sec) || 5));
-  ["mention_admin_on_create", "dm_on_open", "dm_on_close", "close_reason_required", "delete_on_close", "one_ticket_per_user"].forEach(k => {
+  ["mention_admin_on_create", "dm_on_open", "dm_on_close", "close_reason_required", "close_keep_channel", "delete_on_close", "one_ticket_per_user", "card_image_enabled", "stock_enabled"].forEach(k => {
     if (typeof c[k] === "string") c[k] = (c[k] === "true");
   });
   api("/api/settings", "POST", c).then(d => { if (d.ok) { SET = d.settings; renderMsg(); renderDM(); renderNotice(); } msg(d.ok ? "saved" : "fail"); });
